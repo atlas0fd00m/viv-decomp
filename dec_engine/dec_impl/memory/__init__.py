@@ -1,11 +1,23 @@
-"""Memory model & stack-frame analysis.
+"""Memory model & call-graph analysis.
 
-Reconstructs stack frame layout from decompiled functions:
-- Prologue/epilogue detection (push rbp; mov rbp,rsp; sub rsp,N)
-- Stack-frame size computation
-- Local-variable bucketing from [rbp ± offset] and [rsp ± offset] MemRefs
-- Typed local variable enumeration
+Reconstructs stack frame layout from decompiled functions and builds a
+module-level call graph:
+- StackFrameAnalyzer: prologue/epilogue detection, frame-size computation,
+  local-variable bucketing from [rbp ± offset] / [rsp ± offset] MemRefs,
+  typed local-variable enumeration.
+- CallGraphBuilder: directed caller→callee edges from Call instructions.
 """
 from dec_engine.dec_impl.memory.stack import StackFrameAnalyzer, StackVariable
+from dec_engine.dec_impl.memory.callgraph import (
+    CallGraph,
+    CallGraphBuilder,
+    summarize_calls,
+)
 
-__all__ = ["StackFrameAnalyzer", "StackVariable"]
+__all__ = [
+    "StackFrameAnalyzer",
+    "StackVariable",
+    "CallGraph",
+    "CallGraphBuilder",
+    "summarize_calls",
+]
