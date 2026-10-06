@@ -39,6 +39,7 @@ def main(argv: list[str] | None = None) -> int:
             binary_path=args.binary,
             analyze_types=args.types,
             do_ssa=args.ssa,
+            arch=args.arch,
         )
         output = decompiler.decompile_address(args.address)
         if not output:
@@ -87,6 +88,9 @@ def _build_parser() -> argparse.ArgumentParser:
                    help="Run SSA construction pass (default: enabled)")
     p.add_argument("--types/--no-types", dest="types", default=True,
                    help="Run type inference pass (default: enabled)")
+    p.add_argument("--arch", dest="arch", default=None,
+                   help="Architecture override (amd64|i386|arm|arm64|mips|ppc); "
+                        "auto-detected from binary if omitted")
     # verbosity
     p.add_argument("-v", "--verbose", action="store_true",
                    help="Enable verbose output")

@@ -64,8 +64,20 @@ def symbolik_context_for_arch(arch: Optional[str]):
         "i386": "i386",
         "ia32": "i386",
         "x86_32": "i386",
+        "arm": "arm",
+        "arm64": "arm64",
+        "aarch64": "arm64",
+        "mips": "mips",
+        "ppc": "ppc",
+        "powerpc": "ppc",
     }
     norm = alias.get(arch, arch)
+
+    # Architectures with no bundled Vivisect symbolik context: record as
+    # recognized-but-unsupported so the selector reports them instead of
+    # treating them as unknown strings (enables graceful fallback).
+    for known in ("arm", "arm64", "mips", "ppc"):
+        _ARCH_CONTEXTS.setdefault(known, None)
 
     if _ARCH_CONTEXTS.get(norm) is None and norm in _LOADERS:
         _LOADERS[norm]()
