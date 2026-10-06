@@ -43,8 +43,9 @@ class GraphBuilder(ABC):
     ``get_graph(funcva) -> BlockGraph`` which returns the CFG for a function.
     """
 
-    def __init__(self, binary_path: str):
+    def __init__(self, binary_path: str, arch: Optional[str] = None):
         self.binary_path = binary_path
+        self.arch = arch
 
     @abstractmethod
     def get_graph(self, funcva: int, name: str = "") -> BlockGraph:
@@ -61,10 +62,11 @@ class GraphBuilder(ABC):
 class VivisectGraphBuilder(GraphBuilder):
     """Builds BlockGraph from an existing Vivisect workspace."""
 
-    def __init__(self, binary_path: str):
+    def __init__(self, binary_path: str, arch: Optional[str] = None):
         super().__init__(binary_path)
         self.vw = None
         self.workspace_loaded = False
+        self.arch = arch  # optional explicit architecture override
 
     def load(self) -> None:
         """Import Vivisect, load the binary workspace."""
@@ -117,10 +119,17 @@ class VivisectGraphBuilder(GraphBuilder):
             )
 
         # Get symbolik graph from architecture-specific analysis context
-        from vivisect.symboliks.archs.amd64 import Amd64SymbolikAnalysisContext
+        # (auto-detected from the workspace, or overridden via self.arch)
+        from dec_engine.dec_impl.arch.selector import ArchSelector
         from dec_engine.dec_impl.ir.builder import EffectsBuilder
 
-        ctx = Amd64SymbolikAnalysisContext(vw)
+        selector = ArchSelector(arch=self.arch)
+        ctx = selector.instantiate(vw)
+        if ctx is None:
+            raise RuntimeError(
+                "No symbolik analysis context available for arch="
+                f"{selector.context_class(vw) and selector._requested or 'default'}"
+            )
         sgraph = ctx.getSymbolikGraph(funcva)
 
         # Validate we have symbolik effects to process
@@ -206,13 +215,15 @@ class VivisectDecompiler:
         graph_source: str = "vivisect",
         do_ssa: bool = True,
         analyze_types: bool = True,
+        arch: Optional[str] = None,
     ):
         self.binary_path = binary_path
         self.do_ssa = do_ssa
         self.analyze_types = analyze_types
+        self.arch = arch  # optional architecture override (S5)
 
         builder_cls = self.BUILDER_MAP.get(graph_source, RawGraphBuilder)
-        self.graph_builder = builder_cls(binary_path)
+        self.graph_builder = builder_cls(binary_path, arch=arch)
 
         # Analysis state
         self.graph: Optional[BlockGraph] = None
