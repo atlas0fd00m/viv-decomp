@@ -44,6 +44,18 @@ class TestSymbolikContextForArch:
         assert symbolik_context_for_arch("") is None
         assert symbolik_context_for_arch(None) is None
 
+    def test_unsupported_arch_aliases_recognized(self):
+        # arm/mips/ppc are recognized but have no bundled Vivisect context
+        assert symbolik_context_for_arch("arm") is None
+        assert symbolik_context_for_arch("mips") is None
+        assert symbolik_context_for_arch("ppc") is None
+
+    def test_arm64_alias(self):
+        assert symbolik_context_for_arch("aarch64") == symbolik_context_for_arch("arm64")
+
+    def test_powerpc_alias(self):
+        assert symbolik_context_for_arch("powerpc") == symbolik_context_for_arch("ppc")
+
 
 class TestArchNameForWorkspace:
     def test_detects_amd64(self):
