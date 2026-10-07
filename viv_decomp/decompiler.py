@@ -269,6 +269,9 @@ class VivisectDecompiler:
             c_code = pp.generate()
             
             # Build structured JSON snapshot
+            from dec_engine.dec_impl.quality.metrics import analyze_output, QualityGate
+            quality = analyze_output(c_code)
+            gate = QualityGate()
             json_data = {
                 "func_name": name or f"func_{funcva:x}",
                 "func_address": f"0x{funcva:x}",
@@ -277,6 +280,15 @@ class VivisectDecompiler:
                 "type_env": {
                     "num_types": len(self.type_env.types) if self.type_env and hasattr(self.type_env, "types") else 0,
                 } if self.type_env else {},
+                "quality": {
+                    "readability": quality.readability,
+                    "symbol_resolution": quality.symbol_resolution,
+                    "type_accuracy": quality.type_accuracy,
+                    "goto_count": quality.goto_count,
+                    "max_depth": quality.max_depth,
+                    "pass": gate.passes(quality),
+                    "failures": gate.check(quality),
+                },
             }
 
             result = DecompOutput(
