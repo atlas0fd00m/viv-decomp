@@ -34,6 +34,15 @@ def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=log_level, format="%(levelname)s: %(message)s")
 
     try:
+        if args.view:
+            # Interactive Qt viewer mode (address optional)
+            from viv_decomp.qt_app import launch
+            rc = launch(args.binary, graph_source=args.graph, arch=args.arch)
+            return rc
+        if args.address is None and args.function is None:
+            print("Error: specify -a/--address or -f/--function-name "
+                  "(or --view for the interactive viewer)", file=sys.stderr)
+            return 2
         decompiler = VivisectDecompiler(
             graph_source=args.graph,
             binary_path=args.binary,
@@ -73,7 +82,7 @@ def _build_parser() -> argparse.ArgumentParser:
     # positional
     p.add_argument("binary", help="Path to executable/binary file")
     # function target
-    grp = p.add_mutually_exclusive_group(required=True)
+    grp = p.add_mutually_exclusive_group(required=False)
     grp.add_argument("-a", "--address", type=_parse_hex,
                      help="Function entry address (hex or decimal)")
     grp.add_argument("-f", "--function-name", dest="function",
@@ -99,6 +108,8 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--export", dest="export_fmt", choices=["json", "svg", "dot"],
                    default=None,
                    help="Export the function CFG graph (json|svg|dot) instead of code")
+    p.add_argument("--view", dest="view", action="store_true",
+                   help="Launch the interactive Qt viewer (address optional)")
     # verbosity
     p.add_argument("-v", "--verbose", action="store_true",
                    help="Enable verbose output")
