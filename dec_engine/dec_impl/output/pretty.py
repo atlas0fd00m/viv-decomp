@@ -658,7 +658,6 @@ class PrettyPrinter:
             self._output.append(f"    if ({base}) {{")
             self._walk_structured(target_addr, {}, {})
             self._output.append("}")
-            self._output.append("}")
 
     def _enter_block(self, addr: Optional[int], show_label: bool = True):
         """Recursively enter blocks and generate pseudocode."""
