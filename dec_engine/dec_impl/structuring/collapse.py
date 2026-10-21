@@ -47,8 +47,13 @@ def collapse_unconditional_jumps(graph):
             
             logger.debug("C collapsing @ 0x%x -> 0x%x", block.addr, succ.addr)
             
-            # Move instructions from A to B (preserve order)
-            succ.instructions = list(block.instructions) + list(succ.instructions)
+            # Move instructions from A to B (preserve order), stripping
+            # the trailing unconditional branch that triggered the collapse.
+            # Keeping it would produce a goto to the current block in output.
+            from dec_engine.dec_impl.ir.effects import Branch as _Branch
+            merged = [i for i in block.instructions
+                      if not (isinstance(i, _Branch) and i.condition is None)]
+            succ.instructions = merged + list(succ.instructions)
             
             # Update dominator/pred/succ relationships
             for pred in block.predecessors:
@@ -56,6 +61,11 @@ def collapse_unconditional_jumps(graph):
                     idx = pred.successors.index(block)
                     pred.successors[idx] = succ
                 succ.add_predecessor(pred)
+            
+            # Remove the old block from the successor's predecessors
+            # (the original edge block -> succ is now stale)
+            if block in succ.predecessors:
+                succ.predecessors.remove(block)
             
             # Remove the old block from graph (after moving instructions)
             if block.addr in graph.blocks:
