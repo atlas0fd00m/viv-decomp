@@ -202,3 +202,53 @@ class TestBlockGraph:
         b = BasicBlock(addr=0x1000)
         b.metadata["flag"] = True
         assert b.metadata["flag"] is True
+
+
+def _chain_graph(n, loop=False):
+    """n blocks in a straight line; optional back edge last -> first."""
+    blocks = [BasicBlock(addr=0x1000 + i * 0x10) for i in range(n)]
+    for a, b in zip(blocks, blocks[1:]):
+        a.successors.append(b)
+        b.predecessors.append(a)
+    if loop:
+        blocks[-1].successors.append(blocks[0])
+        blocks[0].predecessors.append(blocks[-1])
+    blocks[0].is_entry = True
+    return BlockGraph(entry_block=blocks[0], blocks={b.addr: b for b in blocks})
+
+
+class TestDeepCfg:
+    """#25: DFS helpers must not recurse per block (RecursionError on big CFGs)."""
+
+    DEPTH = sys.getrecursionlimit() * 3
+
+    def test_scc_deep_chain(self):
+        g = _chain_graph(self.DEPTH)
+        sccs = g.get_strongly_connected_components()
+        assert len(sccs) == self.DEPTH
+        # reverse topological order: last block's SCC first, entry's last
+        assert sccs[0][0].addr == 0x1000 + (self.DEPTH - 1) * 0x10
+        assert sccs[-1][0] is g.entry_block
+
+    def test_scc_deep_loop(self):
+        g = _chain_graph(self.DEPTH, loop=True)
+        sccs = g.get_strongly_connected_components()
+        assert len(sccs) == 1
+        assert len(sccs[0]) == self.DEPTH
+
+    def test_back_edges_deep_loop(self):
+        g = _chain_graph(self.DEPTH, loop=True)
+        back = g.back_edges()
+        last = g.blocks[0x1000 + (self.DEPTH - 1) * 0x10]
+        assert back == [(last, g.entry_block)]
+
+    def test_scc_order_matches_tarjan(self):
+        """a->b, b->a, b->c, c->d, d->c: SCC {c,d} emitted before {a,b}."""
+        a, b, c, d = (BasicBlock(addr=x) for x in (0x10, 0x20, 0x30, 0x40))
+        a.successors = [b]
+        b.successors = [a, c]
+        c.successors = [d]
+        d.successors = [c]
+        g = BlockGraph(entry_block=a, blocks={x.addr: x for x in (a, b, c, d)})
+        sccs = [[x.addr for x in s] for s in g.get_strongly_connected_components()]
+        assert sccs == [[0x40, 0x30], [0x20, 0x10]]
