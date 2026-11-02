@@ -60,6 +60,27 @@ class BlockGraph:
     def find_block_by_addr(self, addr: int) -> Optional[BasicBlock]:
         return self.blocks.get(addr, None)
 
+    # ── Dict-like interface (enables domtree.py compatibility) ──
+
+    def keys(self):
+        """Return block addresses (dict-like)."""
+        return self.blocks.keys()
+
+    def __getitem__(self, addr: int) -> BasicBlock:
+        return self.blocks[addr]
+
+    def __contains__(self, addr: int) -> bool:
+        return addr in self.blocks
+
+    def items(self):
+        return self.blocks.items()
+
+    def __iter__(self):
+        return iter(self.blocks)
+
+    def __len__(self) -> int:
+        return len(self.blocks)
+
     def post_dominators(self) -> Dict[BasicBlock, Optional[BasicBlock]]:
         """Compute post-dominator tree (needed for structuring).
         Standard iterative algorithm: postdom(entry) = all blocks,
@@ -88,7 +109,7 @@ class BlockGraph:
                 if b.is_exit:
                     post_dom[b] = frozenset({b})
                 else:
-                    post_dom[b] = frozenset(b.successors)
+                    post_dom[b] = frozenset(all_blocks)  # universal set for intersection
 
         # Iterate until fixed point
         changed = True
