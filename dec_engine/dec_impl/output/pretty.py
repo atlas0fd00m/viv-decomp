@@ -338,10 +338,10 @@ class PrettyPrinter:
             self._output_loop(addr, loop_map[addr], loop_map, dom_children)
         elif len(branches) >= 2:
             # If/else from two conditional branches
-            self._output_if_else(block, addr, branch_count=1)  # Emit once per block level
+            self._output_if_else(block, addr, branch_count=1, loop_map=loop_map, dom_children=dom_children)
         elif len(branches) == 1:
             # Single conditional branch or unconditional jump
-            self._output_single_branch(block, addr)
+            self._output_single_branch(block, addr, loop_map=loop_map, dom_children=dom_children)
         else:
             # No branches - follow successors (shouldn't happen for terminal blocks)
             for succ in block.successors:
@@ -433,8 +433,13 @@ class PrettyPrinter:
         self._formatter.dec()
         self._output.append(f"  }}")
 
-    def _output_if_else(self, block, addr: int, branch_count: int):
+    def _output_if_else(self, block, addr: int, branch_count: int,
+                        loop_map: dict = None, dom_children: dict = None):
         """Emit if/else construct from conditional branches."""
+        if loop_map is None:
+            loop_map = {}
+        if dom_children is None:
+            dom_children = {}
         branches = [ins for ins in block.instructions if isinstance(ins, Branch)]
         cond1_raw = self._formatter.fmt_expr(branches[0].condition) if branches[0].condition else "true"
         
@@ -460,12 +465,12 @@ class PrettyPrinter:
             
             # Visit target block
             if t1_addr is not None and t1_addr not in self._visited:
-                self._walk_structured(t1_addr, {}, {})
+                self._walk_structured(t1_addr, loop_map, dom_children)
             
             if t2_addr is not None:
                 self._output.append("    } else {")
                 if t2_addr not in self._visited:
-                    self._walk_structured(t2_addr, {}, {})
+                    self._walk_structured(t2_addr, loop_map, dom_children)
             
             self._output.append("}")
         else:
@@ -476,14 +481,14 @@ class PrettyPrinter:
             elif not actual_cond.startswith('(NOT'):
                 self._output.append(f"    if ({actual_cond}) {{")
                 if target is not None and target not in self._visited:
-                    self._walk_structured(target, {}, {})
+                    self._walk_structured(target, loop_map, dom_children)
                 self._output.append("}")
             else:
                 # Negation pattern
                 base = actual_cond[4:].rstrip(')').replace('~', '').strip() if actual_cond.startswith('(NOT') or actual_cond.startswith('~(') else actual_cond[:-1]
                 self._output.append(f"    if ({base}) {{")
                 if target and target not in self._visited:
-                    self._walk_structured(target, {}, {})
+                    self._walk_structured(target, loop_map, dom_children)
                 self._output.append("}")
 
     def _compute_dominators(self):
@@ -591,7 +596,7 @@ class PrettyPrinter:
             
             while worklist:
                 node_addr = worklist.pop()
-                if node_addr in visited and node_addr != src:
+                if node_addr in visited:
                     continue
                 visited.add(node_addr)
                 body_addrs.add(node_addr)
@@ -626,8 +631,13 @@ class PrettyPrinter:
         
         return dict(children)
 
-    def _output_single_branch(self, block, addr: int):
+    def _output_single_branch(self, block, addr: int,
+                              loop_map: dict = None, dom_children: dict = None):
         """Emit a single conditional branch as if-then or just comment."""
+        if loop_map is None:
+            loop_map = {}
+        if dom_children is None:
+            dom_children = {}
         branches = [ins for ins in block.instructions if isinstance(ins, Branch)]
         if not branches:
             return
@@ -640,7 +650,7 @@ class PrettyPrinter:
         if not cond_raw or cond_raw == "":
             # Unconditional jump - just follow it
             if target_addr is not None and target_addr not in self._visited:
-                self._walk_structured(target_addr, {}, {})
+                self._walk_structured(target_addr, loop_map, dom_children)
             return
         
         # Conditional branch
@@ -656,8 +666,7 @@ class PrettyPrinter:
                 base = base[1:].lstrip('(')
             base = base.rstrip(')')
             self._output.append(f"    if ({base}) {{")
-            self._walk_structured(target_addr, {}, {})
-            self._output.append("}")
+            self._walk_structured(target_addr, loop_map, dom_children)
             self._output.append("}")
 
     def _enter_block(self, addr: Optional[int], show_label: bool = True):
