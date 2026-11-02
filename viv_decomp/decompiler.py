@@ -272,8 +272,12 @@ class VivisectDecompiler:
             builder.set_workspace(vw)
         return decomp
 
-    def decompile_address(self, funcva: int, name: str = "") -> Optional[dict[str, str]]:
-        """Run the full decompiler pipeline on a single function."""
+    def decompile_address(self, funcva: int, name: str = "") -> DecompOutput:
+        """Run the full decompiler pipeline on a single function.
+
+        Always returns a DecompOutput; on pipeline failure ``success`` is
+        False and ``error`` holds the exception text.
+        """
         result = DecompOutput(text="", json={}, success=False)
         try:
             # 1. Build graph (this triggers graph_builder.load() → vw.analyze())
@@ -354,7 +358,7 @@ class VivisectDecompiler:
             result.text = f"// Error: {result.error}"
             result.json = {"success": False, "error": result.error}
 
-        return result  # type: ignore
+        return result
 
 
     def export_graph(self, funcva: int, fmt: str, name: str = "") -> str:
