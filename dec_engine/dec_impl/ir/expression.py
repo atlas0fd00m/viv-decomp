@@ -366,7 +366,12 @@ class CallExpr(Expression):
     def _cmp(self, other) -> int:
         if self._callee != other._callee:
             return self._callee._cmp(other._callee)
-        return tuple(self._args).__cmp__(tuple(other._args))
+        a, b = tuple(self._args), tuple(other._args)
+        if a < b:
+            return -1
+        if a > b:
+            return 1
+        return 0
 
     def _hash(self) -> int:
         return hash((self._callee, tuple(self._args)))
