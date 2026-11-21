@@ -8,7 +8,7 @@ from __future__ import annotations
 from typing import Dict, List, Tuple, Optional, Set
 from dec_engine.dec_impl.ir.expression import Var, PhiNode, Const, Size
 from dec_engine.dec_impl.ir.effects import Assignment, PhiInstruction
-from dec_engine.dec_impl.ir.block import BasicBlock, BlockGraph
+from dec_engine.dec_impl.ir.block import BasicBlock, BlockGraph, strongly_connected_components
 
 
 class SsaState:
@@ -85,43 +85,8 @@ class SsaTransform:
         return self.graph
 
     def _find_sccs(self) -> List[List[BasicBlock]]:
-        """Tarjan's SCC algorithm."""
-        index_counter = [0]
-        stack: List[BasicBlock] = []
-        lowlinks: Dict[BasicBlock, int] = {}
-        index: Dict[BasicBlock, int] = {}
-        on_stack: Dict[BasicBlock, bool] = {}
-        sccs: List[List[BasicBlock]] = []
-
-        def strongconnect(v: BasicBlock):
-            index[v] = index_counter[0]
-            lowlinks[v] = index_counter[0]
-            index_counter[0] += 1
-            stack.append(v)
-            on_stack[v] = True
-
-            for w in v.successors:
-                if w not in index:
-                    strongconnect(w)
-                    lowlinks[v] = min(lowlinks[v], lowlinks[w])
-                elif on_stack.get(w, False):
-                    lowlinks[v] = min(lowlinks[v], index[w])
-
-            if lowlinks[v] == index[v]:
-                scc: List[BasicBlock] = []
-                while True:
-                    w = stack.pop()
-                    on_stack[w] = False
-                    scc.append(w)
-                    if w is v:
-                        break
-                sccs.append(scc)
-
-        for b in self.graph.blocks.values():
-            if b not in index:
-                strongconnect(b)
-
-        return sccs
+        """Tarjan's SCC algorithm (iterative; see ir.block)."""
+        return strongly_connected_components(list(self.graph.blocks.values()))
 
     def _process_scc(self, scc: List[BasicBlock]):
         """Process an SCC for SSA construction."""

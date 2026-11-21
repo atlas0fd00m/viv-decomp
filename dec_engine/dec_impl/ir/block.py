@@ -5,7 +5,7 @@ Maps from Vivisect's visgraph.HierGraph to our IR-level CFG.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional, List, Dict, Set, Tuple
+from typing import Optional, List, Dict, Set, Tuple, Iterable, Iterator
 
 
 @dataclass
@@ -42,6 +42,66 @@ class BasicBlock:
 
 # Forward ref placeholder - Instruction type union resolved in builder.py
 Instruction = None  # type: ignore
+
+
+def strongly_connected_components(
+    blocks: Iterable[BasicBlock],
+) -> List[List[BasicBlock]]:
+    """Tarjan's SCC algorithm, iterative (explicit stack).
+
+    Emits SCCs in the same order as the textbook recursive form (reverse
+    topological order of the condensation), and blocks within each SCC in
+    stack-pop order, but does not consume Python stack frames, so CFGs
+    deeper than sys.getrecursionlimit() don't raise RecursionError.
+    """
+    index: Dict[BasicBlock, int] = {}
+    lowlink: Dict[BasicBlock, int] = {}
+    on_stack: Set[BasicBlock] = set()
+    stack: List[BasicBlock] = []
+    sccs: List[List[BasicBlock]] = []
+    counter = 0
+
+    for root in blocks:
+        if root in index:
+            continue
+        index[root] = lowlink[root] = counter
+        counter += 1
+        stack.append(root)
+        on_stack.add(root)
+        work: List[Tuple[BasicBlock, Iterator[BasicBlock]]] = [
+            (root, iter(root.successors))
+        ]
+
+        while work:
+            v, succs = work[-1]
+            for w in succs:
+                if w not in index:
+                    # "recurse" into w; resume v's successor iterator later
+                    index[w] = lowlink[w] = counter
+                    counter += 1
+                    stack.append(w)
+                    on_stack.add(w)
+                    work.append((w, iter(w.successors)))
+                    break
+                elif w in on_stack:
+                    lowlink[v] = min(lowlink[v], index[w])
+            else:
+                # all successors of v done ("return" from v)
+                work.pop()
+                if lowlink[v] == index[v]:
+                    scc: List[BasicBlock] = []
+                    while True:
+                        w = stack.pop()
+                        on_stack.discard(w)
+                        scc.append(w)
+                        if w is v:
+                            break
+                    sccs.append(scc)
+                if work:
+                    parent = work[-1][0]
+                    lowlink[parent] = min(lowlink[parent], lowlink[v])
+
+    return sccs
 
 
 @dataclass
@@ -215,20 +275,30 @@ class BlockGraph:
         color: Dict[BasicBlock, int] = {b: WHITE for b in self.blocks.values()}
         back_edges: List[Tuple[BasicBlock, BasicBlock]] = []
 
-        def dfs(u: BasicBlock):
-            color[u] = GRAY
-            for v in u.successors:
-                if v not in color:
-                    continue
-                if color[v] == GRAY:
-                    back_edges.append((u, v))
-                elif color[v] == WHITE:
-                    dfs(v)
-            color[u] = BLACK
-
+        # Iterative DFS (explicit stack of successor iterators) so deep CFGs
+        # don't hit the Python recursion limit. Visit order matches the
+        # recursive form exactly.
         for b in self.blocks.values():
-            if color[b] == WHITE:
-                dfs(b)
+            if color[b] != WHITE:
+                continue
+            color[b] = GRAY
+            work: List[Tuple[BasicBlock, Iterator[BasicBlock]]] = [
+                (b, iter(b.successors))
+            ]
+            while work:
+                u, succs = work[-1]
+                for v in succs:
+                    if v not in color:
+                        continue
+                    if color[v] == GRAY:
+                        back_edges.append((u, v))
+                    elif color[v] == WHITE:
+                        color[v] = GRAY
+                        work.append((v, iter(v.successors)))
+                        break
+                else:
+                    color[u] = BLACK
+                    work.pop()
 
         return back_edges
 
@@ -236,41 +306,4 @@ class BlockGraph:
         self,
     ) -> List[List["BasicBlock"]]:
         """Find SCCs in the function's CFG using Tarjan's algorithm."""
-        index_counter = [0]
-        stack: List[BasicBlock] = []
-        lowlinks: Dict[BasicBlock, int] = {}
-        index: Dict[BasicBlock, int] = {}
-        on_stack: Dict[BasicBlock, bool] = {}
-        sccs: List[List[BasicBlock]] = []
-
-        def strongconnect(v: BasicBlock):
-            index[v] = index_counter[0]
-            lowlinks[v] = index_counter[0]
-            index_counter[0] += 1
-            stack.append(v)
-            on_stack[v] = True
-
-            for w in v.successors:
-                if w not in index:
-                    strongconnect(w)
-                    lowlinks[v] = min(lowlinks[v], lowlinks[w])
-                elif on_stack.get(w, False):
-                    lowlinks[v] = min(lowlinks[v], index[w])
-
-            if lowlinks[v] == index[v]:
-                scc: List[BasicBlock] = []
-                while True:
-                    w = stack.pop()
-                    on_stack[w] = False
-                    scc.append(w)
-                    if w is v:
-                        break
-                sccs.append(scc)
-
-        all_blocks = list(self.blocks.values())
-        # Use iterative approach to avoid stack overflow on large CFGs
-        for b in all_blocks:
-            if b not in index:
-                strongconnect(b)
-
-        return sccs
+        return strongly_connected_components(list(self.blocks.values()))

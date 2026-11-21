@@ -141,6 +141,18 @@ class TestSsaTransform:
         assert len(sccs) == 1
         assert len(sccs[0]) == 2
 
+    def test_find_sccs_deep_loop_no_recursion_error(self):
+        """#25: SCC search on a CFG deeper than the recursion limit."""
+        n = sys.getrecursionlimit() * 3
+        blocks = [BasicBlock(addr=0x1000 + i * 0x10) for i in range(n)]
+        for x, y in zip(blocks, blocks[1:]):
+            x.successors.append(y)
+        blocks[-1].successors.append(blocks[0])
+        g = BlockGraph(entry_block=blocks[0], blocks={b.addr: b for b in blocks})
+        sccs = SsaTransform(g)._find_sccs()
+        assert len(sccs) == 1
+        assert len(sccs[0]) == n
+
 
     def test_process_scc(self):
         """Test processing an SCC creates states."""
