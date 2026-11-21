@@ -160,6 +160,27 @@ class TestWorkspaceGraphBuilder:
         assert out.success
         assert "{" in out.text  # C function body emitted
 
+    def test_decompile_address_return_annotation(self):
+        """#27: annotation must match the DecompOutput actually returned."""
+        import typing
+        from viv_decomp.decompiler import VivisectDecompiler, DecompOutput
+        hints = typing.get_type_hints(VivisectDecompiler.decompile_address)
+        assert hints["return"] is DecompOutput
+
+    def test_decompile_address_failure_returns_decompoutput(self):
+        """Pipeline errors are reported in a DecompOutput, never None."""
+        from viv_decomp.decompiler import VivisectDecompiler, DecompOutput
+        d = VivisectDecompiler.from_workspace(_diamond_workspace())
+
+        def boom(*a, **k):
+            raise RuntimeError("no graph")
+
+        d.graph_builder.get_graph = boom
+        out = d.decompile_address(0x1000)
+        assert isinstance(out, DecompOutput)
+        assert out.success is False
+        assert out.error == "RuntimeError: no graph"
+
     def test_blocks_have_cfg_metadata(self):
         vw = _diamond_workspace()
         graph = self._make(vw).get_graph(0x1000)
