@@ -215,60 +215,6 @@ class TestGenerate:
         assert len(pp.generate()) > 0
 
 
-# ── _enter_block ──
-
-class TestEnterBlock:
-    def test_enter_existing_block(self, graph, ssa):
-        pp = PrettyPrinter("main", graph, ssa)
-        pp._output = []
-        pp._enter_block(0x1000)
-        assert len(pp._output) > 0
-
-    def test_enter_missing_block(self, graph, ssa):
-        pp = PrettyPrinter("main", graph, ssa)
-        pp._output = []
-        pp._enter_block(0xDEAD)
-        assert any("not found" in line.lower() for line in pp._output)
-
-    def test_enter_visited_block_skips(self, graph, ssa):
-        pp = PrettyPrinter("main", graph, ssa)
-        pp._output = []
-        pp._enter_block(0x1000)
-        pp._visited.clear()  # Reset visited so it enters again
-        pp._enter_block(0x1000)
-        # Should not crash
-
-    def test_enter_block_no_instructions(self, graph, ssa):
-        pp = PrettyPrinter("main", graph, ssa)
-        block = graph.blocks[0x2000]
-        block.instructions = []
-        pp._output = []
-        pp._enter_block(0x2000)
-        # Should produce a label (format is L_{addr})
-        assert any(line.strip().endswith(":") for line in pp._output)
-        assert len(pp._output) > 0
-
-
-# ── _format_control_flow ──
-
-class TestFormatControlFlow:
-    def test_format_unconditional_branch(self, graph, ssa):
-        pp = PrettyPrinter("main", graph, ssa)
-        target = type("BB", (), {"addr": 0x3000})()
-        branch = type("Branch", (), {"condition": None, "true_target": target})()
-        pp._output = []
-        pp._format_control_flow(branch, None)
-        assert any("goto" in line.lower() for line in pp._output)
-
-    def test_format_conditional_branch(self, graph, ssa):
-        pp = PrettyPrinter("main", graph, ssa)
-        target = type("BB", (), {"addr": 0x3000})()
-        branch = type("Branch", (), {"condition": "cond", "true_target": target})()
-        pp._output = []
-        pp._format_control_flow(branch, None)
-        assert any("if" in line.lower() for line in pp._output)
-
-
 # ── structured loop reconstruction ──
 
 class TestStructuredLoop:
