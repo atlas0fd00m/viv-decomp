@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "viv-decomp"
+version = "0.1.0"
+description = "Vivisect Decompiler Extension"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "atlas0fd00m" }]
+keywords = ["vivisect", "decompiler", "reverse-engineering", "disassembly"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Disassemblers",
+]
+dependencies = []
+
+[project.optional-dependencies]
+vivisect = ["vivisect>=1.1.0"]
+dev = ["pytest>=7.0"]
+
+[project.scripts]
+viv-decomp = "viv_decomp.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["viv_decomp*", "dec_engine*"]
