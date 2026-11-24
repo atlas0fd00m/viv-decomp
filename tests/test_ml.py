@@ -38,7 +38,7 @@ def _branch(cond, tgt):
 
 class TestFeatureExtractor:
     def test_dim(self):
-        assert FEATURE_DIM == 8
+        assert FEATURE_DIM == 10
 
     def test_int_var_features(self):
         from dec_engine.dec_impl.ir.expression import BinOp, OpType, Const
@@ -172,8 +172,8 @@ class TestNeuralTypePass:
         from dec_engine.dec_impl.ml.typing import NeuralTypeInferer
         inf = NeuralTypeInferer(classes=["char", "int", "long", "void*"])
         # train minimally on separable size data (feature0 = size/64)
-        def _feat(size):  # 8-dim feature vector, size at idx 0
-            f = [0.0] * 8
+        def _feat(size):  # FEATURE_DIM-dim feature vector, size at idx 0
+            f = [0.0] * FEATURE_DIM
             f[0] = size / 64.0
             return f
         X = [_feat(8), _feat(32), _feat(64)]
