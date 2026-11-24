@@ -14,6 +14,12 @@ Feature vector (fixed length F):
   idx 5: 1 if used as a call argument else 0
   idx 6: width variance across uses (0..1)
   idx 7: 1 if appears as a load target (ReadMemory) else 0
+  idx 8: applied-effect path count (SymbolikEmulator applied evidence, /8)
+  idx 9: 1 if variable is concrete-resolved in applied effects (pointer-likeness)
+
+(Applied indices are present only when the graph carries
+``metadata["applied_effects"]`` from the SymbolikEmulatorPass; otherwise they
+are 0.)
 
 Label: DataType name (e.g. "char", "int", "long", "void*", ...).
 """
@@ -26,7 +32,7 @@ import dec_engine.dec_impl.ir.expression as expr
 import dec_engine.dec_impl.ir.effects as fx
 
 
-FEATURE_DIM = 8
+FEATURE_DIM = 10
 
 
 def _size_bits(sz) -> int:
@@ -135,9 +141,21 @@ def _name(e) -> Optional[str]:
     return None
 
 
+def _applied_lookup(graph):
+    """Return the applied_effects evidence dict from graph metadata, or empty."""
+    meta = getattr(graph, "metadata", None)
+    if not meta:
+        return {}
+    ev = meta.get("applied_effects")
+    if ev is None:
+        return {}
+    return getattr(ev, "vars", {}) or {}
+
+
 def extract(graph) -> List[TypeExample]:
     """Extract per-variable feature vectors + labels from the IR graph."""
     stats = _collect_use_stats(graph)
+    applied = _applied_lookup(graph)  # name -> VarApplied (applied evidence)
     examples: List[TypeExample] = []
     for var, st in stats.items():
         if not st["sizes"]:
@@ -154,6 +172,15 @@ def extract(graph) -> List[TypeExample]:
             mn, mx = min(st["sizes"]), max(st["sizes"])
             f[6] = (mx - mn) / 64.0
         f[7] = 1.0 if st["load"] else 0.0
+
+        # Applied-effect evidence (idx 8-9): strength of SymbolikEmulator
+        # resolution for this variable (if the pass ran and named it).
+        if var in applied:
+            applied_v = applied[var]
+            paths = int(getattr(applied_v, "paths", 0) or 0)
+            f[8] = min(paths, 8) / 8.0
+            f[9] = 1.0 if getattr(applied_v, "symval", None) is not None else 0.0
+
         is_ptr = st["memaddr"] > 0 or st["ptr_src"] > 0
         label = _to_type_label(size if size in (8, 16, 32, 64) else 32, bool(is_ptr))
         examples.append(TypeExample(var=var, features=f, label=label))
