@@ -141,6 +141,27 @@ def _name(e) -> Optional[str]:
     return None
 
 
+def _is_resolved(symval) -> bool:
+    """True if an applied symval resolved to a concrete value.
+
+    Handles Vivisect symbolik objects (which expose ``discrete`` / ``isDiscrete()``)
+    and plain Python ints/float constants.
+    """
+    if symval is None:
+        return False
+    if isinstance(symval, (int, float)):
+        return True
+    discrete = getattr(symval, "discrete", None)
+    if discrete is not None:
+        return bool(discrete)
+    if hasattr(symval, "isDiscrete"):
+        try:
+            return bool(symval.isDiscrete())
+        except Exception:
+            pass
+    return False
+
+
 def _applied_lookup(graph):
     """Return the applied_effects evidence dict from graph metadata, or empty."""
     meta = getattr(graph, "metadata", None)
@@ -175,11 +196,14 @@ def extract(graph) -> List[TypeExample]:
 
         # Applied-effect evidence (idx 8-9): strength of SymbolikEmulator
         # resolution for this variable (if the pass ran and named it).
+        # idx 9 uses *discreteness* (the value resolved to a concrete
+        # constant, not an unresolved symbolic var) — high-discriminative.
         if var in applied:
             applied_v = applied[var]
             paths = int(getattr(applied_v, "paths", 0) or 0)
             f[8] = min(paths, 8) / 8.0
-            f[9] = 1.0 if getattr(applied_v, "symval", None) is not None else 0.0
+            symval = getattr(applied_v, "symval", None)
+            f[9] = 1.0 if _is_resolved(symval) else 0.0
 
         is_ptr = st["memaddr"] > 0 or st["ptr_src"] > 0
         label = _to_type_label(size if size in (8, 16, 32, 64) else 32, bool(is_ptr))

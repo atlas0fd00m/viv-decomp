@@ -7,8 +7,7 @@ effects — the raw symbolik effects resolved against live emulator state
 effect list alone:
 
 - unapplied: a variable is 64-bits wide (structural guess)
-- applied: the variable actually holds a resolved value on some path, or was
-  dereferenced (pointer-likeness becomes concrete)
+- applied: the variable actually holds a resolved value on some path
 
 Uses ``SymbolikAnalysisContext.getSymbolikPaths(fva)`` which yields
 ``(emu, effects)`` per path through the function. ``emu.getSymVariables()``
@@ -41,7 +40,6 @@ class AppliedEffectEvidence:
     def __init__(self):
         self.vars: Dict[str, VarApplied] = {}
         self.concrete_count: int = 0
-        self.pointer_count: int = 0
         self.path_count: int = 0
 
     @property
